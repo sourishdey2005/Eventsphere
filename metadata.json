@@ -1,0 +1,9 @@
+{
+  "name": "KIIT EventSphere",
+  "description": "Smart Campus Event & Society Management System for KIIT University. Features student registration, society management, and super admin oversight.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
