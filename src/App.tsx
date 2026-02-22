@@ -530,6 +530,113 @@ const SuperAdminDashboard = () => {
   );
 };
 
+const ManageSocieties = () => {
+  const [societies, setSocieties] = useState<any[]>([]);
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+
+  useEffect(() => {
+    api.get('/societies').then(res => setSocieties(res.data));
+  }, []);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await api.post('/societies', { name, description });
+      setSocieties([...societies, res.data]);
+      setName('');
+      setDescription('');
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to create society');
+    }
+  };
+
+  return (
+    <div className="space-y-8">
+      <h1 className="text-2xl font-bold">Manage Societies</h1>
+      <Card>
+        <h2 className="mb-4 text-lg font-semibold">Add New Society</h2>
+        <form onSubmit={handleCreate} className="flex gap-4">
+          <input
+            type="text"
+            placeholder="Society Name"
+            className="flex-1 rounded-lg border border-gray-300 px-4 py-2 focus:border-[#0B3D91] focus:outline-none"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            required
+          />
+          <input
+            type="text"
+            placeholder="Description"
+            className="flex-2 rounded-lg border border-gray-300 px-4 py-2 focus:border-[#0B3D91] focus:outline-none"
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+          />
+          <Button type="submit">Add Society</Button>
+        </form>
+      </Card>
+
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {societies.map(s => (
+          <Card key={s.id}>
+            <h3 className="text-xl font-bold">{s.name}</h3>
+            <p className="mt-2 text-sm text-gray-600">{s.description}</p>
+            <div className="mt-4 flex gap-2">
+              <Button variant="outline" className="w-full">Edit</Button>
+              <Button variant="outline" className="w-full text-red-600">Remove</Button>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const Participants = () => {
+  const [participants, setParticipants] = useState<any[]>([]);
+
+  useEffect(() => {
+    api.get('/society/participants').then(res => setParticipants(res.data));
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">Event Participants</h1>
+      <Card>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b text-sm font-medium text-gray-500">
+                <th className="pb-4">Name</th>
+                <th className="pb-4">Email</th>
+                <th className="pb-4">Event</th>
+                <th className="pb-4">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {participants.map(p => (
+                <tr key={p.id} className="text-sm">
+                  <td className="py-4 font-medium">{p.users.name}</td>
+                  <td className="py-4">{p.users.email}</td>
+                  <td className="py-4">{p.events.title}</td>
+                  <td className="py-4">
+                    <span className={cn(
+                      "rounded-full px-2 py-1 text-xs",
+                      p.attended ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
+                    )}>
+                      {p.attended ? "Attended" : "Registered"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
 const CreateEvent = () => {
   const [formData, setFormData] = useState({
     title: '',
@@ -681,6 +788,22 @@ export default function App() {
           user?.role === 'super_admin' ? (
             <DashboardLayout user={user} setUser={setUser}>
               <SuperAdminDashboard />
+            </DashboardLayout>
+          ) : <Navigate to="/login" />
+        } />
+
+        <Route path="/participants" element={
+          user?.role === 'society_admin' ? (
+            <DashboardLayout user={user} setUser={setUser}>
+              <Participants />
+            </DashboardLayout>
+          ) : <Navigate to="/login" />
+        } />
+
+        <Route path="/manage-societies" element={
+          user?.role === 'super_admin' ? (
+            <DashboardLayout user={user} setUser={setUser}>
+              <ManageSocieties />
             </DashboardLayout>
           ) : <Navigate to="/login" />
         } />

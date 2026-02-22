@@ -201,6 +201,40 @@ app.get("/api/student/registrations", authenticateToken, authorizeRoles("student
   res.json(data);
 });
 
+// --- Society Routes ---
+
+app.get("/api/societies", async (req, res) => {
+  const { data, error } = await supabase
+    .from("societies")
+    .select("*");
+  
+  if (error) return res.status(400).json({ error: error.message });
+  res.json(data);
+});
+
+app.post("/api/societies", authenticateToken, authorizeRoles("super_admin"), async (req, res) => {
+  const { name, description } = req.body;
+  const { data, error } = await supabase
+    .from("societies")
+    .insert([{ name, description, created_by: (req as any).user.id }])
+    .select()
+    .single();
+
+  if (error) return res.status(400).json({ error: error.message });
+  res.json(data);
+});
+
+app.get("/api/society/participants", authenticateToken, authorizeRoles("society_admin"), async (req, res) => {
+  const societyId = (req as any).user.society_id;
+  const { data, error } = await supabase
+    .from("event_registrations")
+    .select("*, users(name, email), events(title)")
+    .eq("events.society_id", societyId);
+
+  if (error) return res.status(400).json({ error: error.message });
+  res.json(data);
+});
+
 // --- Admin Analytics ---
 
 app.get("/api/admin/stats", authenticateToken, authorizeRoles("super_admin"), async (req, res) => {
