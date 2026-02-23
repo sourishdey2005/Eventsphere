@@ -8,8 +8,12 @@ import QRCode from "qrcode";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 import path from "path";
+import { fileURLToPath } from 'url';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = 3000;
@@ -91,6 +95,25 @@ app.post("/api/auth/register", async (req, res) => {
   if (error) return res.status(400).json({ error: error.message });
 
   res.json({ message: "Registration successful" });
+});
+
+app.get("/api/auth/me", authenticateToken, async (req, res) => {
+  const { id } = (req as any).user;
+  
+  // Handle hardcoded admin
+  if (id === "super-admin-id") {
+    return res.json({ id: "super-admin-id", email: "admin@kiit.ac.in", role: "super_admin", name: "Super Admin" });
+  }
+
+  const { data: user, error } = await supabase
+    .from("users")
+    .select("id, name, email, role, society_id")
+    .eq("id", id)
+    .single();
+
+  if (error || !user) return res.status(404).json({ error: "User not found" });
+
+  res.json(user);
 });
 
 // --- Event Routes ---
@@ -199,6 +222,21 @@ app.get("/api/student/registrations", authenticateToken, authorizeRoles("student
 
   if (error) return res.status(400).json({ error: error.message });
   res.json(data);
+});
+
+app.get("/api/student/stats", authenticateToken, authorizeRoles("student"), async (req, res) => {
+  const studentId = (req as any).user.id;
+  
+  const { data, error } = await supabase
+    .from("event_registrations")
+    .select("attended")
+    .eq("student_id", studentId)
+    .eq("attended", true);
+
+  if (error) return res.status(400).json({ error: error.message });
+  
+  const points = (data?.length || 0) * 100; // 100 points per attended event
+  res.json({ points, attendedCount: data?.length || 0 });
 });
 
 // --- Society Routes ---

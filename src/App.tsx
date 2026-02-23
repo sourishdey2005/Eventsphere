@@ -105,6 +105,12 @@ const Login = ({ setUser }: { setUser: (u: User) => void }) => {
         className="w-full max-w-md"
       >
         <div className="mb-8 text-center">
+          <img 
+            src="https://imgs.search.brave.com/tpBdKslGmW0lv4Hgd5d-F16PZSSuFEjvbFvuWvmBapA/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly9pLnBp/bmltZy5jb20vb3Jp/Z2luYWxzLzIyLzE0/L2MyLzIyMTRjMjU5/ZGFmNTk3YmMzOGE5/MDdkNDc5NjAyN2M3/LmpwZw" 
+            alt="KIIT Logo" 
+            className="mx-auto mb-4 h-24 w-auto rounded-full shadow-lg"
+            referrerPolicy="no-referrer"
+          />
           <h1 className="text-3xl font-bold text-[#0B3D91]">KIIT EventSphere</h1>
           <p className="mt-2 text-gray-600">Smart Campus Event Management</p>
         </div>
@@ -168,6 +174,14 @@ const Register = () => {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md"
       >
+        <div className="mb-8 text-center">
+          <img 
+            src="https://imgs.search.brave.com/tpBdKslGmW0lv4Hgd5d-F16PZSSuFEjvbFvuWvmBapA/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly9pLnBp/bmltZy5jb20vb3Jp/Z2luYWxzLzIyLzE0/L2MyLzIyMTRjMjU5/ZGFmNTk3YmMzOGE5/MDdkNDc5NjAyN2M3/LmpwZw" 
+            alt="KIIT Logo" 
+            className="mx-auto mb-4 h-24 w-auto rounded-full shadow-lg"
+            referrerPolicy="no-referrer"
+          />
+        </div>
         <Card>
           <h2 className="mb-6 text-2xl font-bold text-[#0B3D91]">Create Account</h2>
           {success ? (
@@ -300,9 +314,11 @@ const DashboardLayout = ({ user, setUser, children }: { user: User; setUser: (u:
 
 const StudentDashboard = () => {
   const [events, setEvents] = useState<Event[]>([]);
+  const [stats, setStats] = useState({ points: 0, attendedCount: 0 });
 
   useEffect(() => {
     api.get('/events').then(res => setEvents(res.data));
+    api.get('/student/stats').then(res => setStats(res.data)).catch(() => {});
   }, []);
 
   return (
@@ -314,7 +330,7 @@ const StudentDashboard = () => {
             <Trophy className="text-[#FF6B00]" />
             <div>
               <p className="text-xs text-gray-500">Points</p>
-              <p className="font-bold">1,250</p>
+              <p className="font-bold">{stats.points.toLocaleString()}</p>
             </div>
           </Card>
         </div>
@@ -729,15 +745,19 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      // In a real app, verify token and fetch user
-      // For this demo, we'll assume it's valid if present
-      // and let the API calls handle errors
+    const initAuth = async () => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          const res = await api.get('/auth/me');
+          setUser(res.data);
+        } catch (err) {
+          localStorage.removeItem('token');
+        }
+      }
       setLoading(false);
-    } else {
-      setLoading(false);
-    }
+    };
+    initAuth();
   }, []);
 
   if (loading) return <div className="flex h-screen items-center justify-center">Loading...</div>;
