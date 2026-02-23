@@ -99,7 +99,7 @@ app.post("/api/auth/register", async (req, res) => {
 
 app.get("/api/auth/me", authenticateToken, async (req, res) => {
   const { id } = (req as any).user;
-  
+
   // Handle hardcoded admin
   if (id === "super-admin-id") {
     return res.json({ id: "super-admin-id", email: "admin@kiit.ac.in", role: "super_admin", name: "Super Admin" });
@@ -123,7 +123,7 @@ app.get("/api/events", async (req, res) => {
     .from("events")
     .select("*, societies(name)")
     .eq("verified", true);
-  
+
   if (error) return res.status(400).json({ error: error.message });
   res.json(data);
 });
@@ -133,7 +133,7 @@ app.get("/api/events/unverified", authenticateToken, authorizeRoles("super_admin
     .from("events")
     .select("*, societies(name)")
     .eq("verified", false);
-  
+
   if (error) return res.status(400).json({ error: error.message });
   res.json(data);
 });
@@ -142,15 +142,15 @@ app.post("/api/events", authenticateToken, authorizeRoles("society_admin"), asyn
   const { title, description, venue, event_date, max_limit } = req.body;
   const { data, error } = await supabase
     .from("events")
-    .insert([{ 
-      title, 
-      description, 
-      venue, 
-      event_date, 
-      max_limit, 
+    .insert([{
+      title,
+      description,
+      venue,
+      event_date,
+      max_limit,
       society_id: (req as any).user.society_id,
       created_by: (req as any).user.id,
-      verified: false 
+      verified: false
     }])
     .select()
     .single();
@@ -226,7 +226,7 @@ app.get("/api/student/registrations", authenticateToken, authorizeRoles("student
 
 app.get("/api/student/stats", authenticateToken, authorizeRoles("student"), async (req, res) => {
   const studentId = (req as any).user.id;
-  
+
   const { data, error } = await supabase
     .from("event_registrations")
     .select("attended")
@@ -234,7 +234,7 @@ app.get("/api/student/stats", authenticateToken, authorizeRoles("student"), asyn
     .eq("attended", true);
 
   if (error) return res.status(400).json({ error: error.message });
-  
+
   const points = (data?.length || 0) * 100; // 100 points per attended event
   res.json({ points, attendedCount: data?.length || 0 });
 });
@@ -268,21 +268,76 @@ app.get("/api/societies", async (req, res) => {
   const { data, error } = await supabase
     .from("societies")
     .select("*");
-  
+
   if (error) return res.status(400).json({ error: error.message });
   res.json(data);
 });
 
 app.post("/api/societies", authenticateToken, authorizeRoles("super_admin"), async (req, res) => {
-  const { name, description } = req.body;
+  const { name, description, fic_name, fic_details, department, email, password } = req.body;
+
+  // 1. Create Society
+  const { data: society, error: societyError } = await supabase
+    .from("societies")
+    .insert([{
+      name,
+      description,
+      fic_name,
+      fic_details,
+      department,
+      created_by: (req as any).user.id
+    }])
+    .select()
+    .single();
+
+  if (societyError) return res.status(400).json({ error: societyError.message });
+
+  // 2. Create Society Admin User
+  if (email && password) {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const { error: userError } = await supabase
+      .from("users")
+      .insert([{
+        name: `${name} Admin`,
+        email,
+        password: hashedPassword,
+        role: "society_admin",
+        society_id: society.id
+      }]);
+
+    if (userError) {
+      // Rollback society creation if user creation fails
+      await supabase.from("societies").delete().eq("id", society.id);
+      return res.status(400).json({ error: "Failed to create society admin: " + userError.message });
+    }
+  }
+
+  res.json(society);
+});
+
+app.patch("/api/societies/:id", authenticateToken, authorizeRoles("super_admin"), async (req, res) => {
+  const { name, description, fic_name, fic_details, department } = req.body;
   const { data, error } = await supabase
     .from("societies")
-    .insert([{ name, description, created_by: (req as any).user.id }])
+    .update({ name, description, fic_name, fic_details, department })
+    .eq("id", req.params.id)
     .select()
     .single();
 
   if (error) return res.status(400).json({ error: error.message });
   res.json(data);
+});
+
+app.delete("/api/societies/:id", authenticateToken, authorizeRoles("super_admin"), async (req, res) => {
+  // Supabase RLS and Foreign Keys should handle cascading if configured, 
+  // but let's be explicit if needed or rely on the DB.
+  const { error } = await supabase
+    .from("societies")
+    .delete()
+    .eq("id", req.params.id);
+
+  if (error) return res.status(400).json({ error: error.message });
+  res.json({ message: "Society deleted successfully" });
 });
 
 app.get("/api/society/events", authenticateToken, authorizeRoles("society_admin"), async (req, res) => {
@@ -313,7 +368,7 @@ app.get("/api/admin/stats", authenticateToken, authorizeRoles("super_admin"), as
   const { count: students } = await supabase.from("users").select("*", { count: 'exact', head: true }).eq("role", "student");
   const { count: societies } = await supabase.from("societies").select("*", { count: 'exact', head: true });
   const { count: registrations } = await supabase.from("event_registrations").select("*", { count: 'exact', head: true });
-  
+
   res.json({ students, societies, registrations });
 });
 

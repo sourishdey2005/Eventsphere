@@ -1,27 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
-import { 
-  format, 
-  startOfMonth, 
-  endOfMonth, 
-  startOfWeek, 
-  endOfWeek, 
-  eachDayOfInterval, 
-  isSameMonth, 
-  isSameDay, 
-  addMonths, 
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  eachDayOfInterval,
+  isSameMonth,
+  isSameDay,
+  addMonths,
   subMonths,
   parseISO
 } from 'date-fns';
-import { 
-  LayoutDashboard, 
-  Calendar, 
-  Users, 
-  PlusCircle, 
-  LogOut, 
-  CheckCircle, 
-  XCircle, 
-  QrCode, 
+import {
+  LayoutDashboard,
+  Calendar,
+  Users,
+  PlusCircle,
+  LogOut,
+  CheckCircle,
+  XCircle,
+  QrCode,
   Bell,
   Menu,
   X,
@@ -84,7 +84,7 @@ const Button = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HT
   }
 );
 
-const Card = ({ children, className, ...props }: { children: React.ReactNode; className?: string; [key: string]: any }) => (
+const Card = ({ children, className, ...props }: { children: React.ReactNode; className?: string;[key: string]: any }) => (
   <div className={cn('rounded-xl border border-gray-200 bg-white p-6 shadow-sm', className)} {...props}>
     {children}
   </div>
@@ -112,15 +112,15 @@ const Login = ({ setUser }: { setUser: (u: User) => void }) => {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#f8fafc] px-4">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md"
       >
         <div className="mb-8 text-center">
-          <img 
-            src="https://imgs.search.brave.com/tpBdKslGmW0lv4Hgd5d-F16PZSSuFEjvbFvuWvmBapA/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly9pLnBp/bmltZy5jb20vb3Jp/Z2luYWxzLzIyLzE0/L2MyLzIyMTRjMjU5/ZGFmNTk3YmMzOGE5/MDdkNDc5NjAyN2M3/LmpwZw" 
-            alt="KIIT Logo" 
+          <img
+            src="https://imgs.search.brave.com/tpBdKslGmW0lv4Hgd5d-F16PZSSuFEjvbFvuWvmBapA/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly9pLnBp/bmltZy5jb20vb3Jp/Z2luYWxzLzIyLzE0/L2MyLzIyMTRjMjU5/ZGFmNTk3YmMzOGE5/MDdkNDc5NjAyN2M3/LmpwZw"
+            alt="KIIT Logo"
             className="mx-auto mb-4 h-24 w-auto rounded-full shadow-lg"
             referrerPolicy="no-referrer"
           />
@@ -182,15 +182,15 @@ const Register = () => {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#f8fafc] px-4">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md"
       >
         <div className="mb-8 text-center">
-          <img 
-            src="https://imgs.search.brave.com/tpBdKslGmW0lv4Hgd5d-F16PZSSuFEjvbFvuWvmBapA/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly9pLnBp/bmltZy5jb20vb3Jp/Z2luYWxzLzIyLzE0/L2MyLzIyMTRjMjU5/ZGFmNTk3YmMzOGE5/MDdkNDc5NjAyN2M3/LmpwZw" 
-            alt="KIIT Logo" 
+          <img
+            src="https://imgs.search.brave.com/tpBdKslGmW0lv4Hgd5d-F16PZSSuFEjvbFvuWvmBapA/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly9pLnBp/bmltZy5jb20vb3Jp/Z2luYWxzLzIyLzE0/L2MyLzIyMTRjMjU5/ZGFmNTk3YmMzOGE5/MDdkNDc5NjAyN2M3/LmpwZw"
+            alt="KIIT Logo"
             className="mx-auto mb-4 h-24 w-auto rounded-full shadow-lg"
             referrerPolicy="no-referrer"
           />
@@ -334,8 +334,8 @@ const StudentDashboard = () => {
 
   useEffect(() => {
     api.get('/events').then(res => setEvents(res.data));
-    api.get('/student/stats').then(res => setStats(res.data)).catch(() => {});
-    api.get('/student/registrations').then(res => setRegistrations(res.data)).catch(() => {});
+    api.get('/student/stats').then(res => setStats(res.data)).catch(() => { });
+    api.get('/student/registrations').then(res => setRegistrations(res.data)).catch(() => { });
   }, []);
 
   const monthStart = startOfMonth(currentMonth);
@@ -387,7 +387,7 @@ const StudentDashboard = () => {
                         {new Date(event.event_date).toLocaleDateString()}
                       </div>
                     </div>
-                    <Button 
+                    <Button
                       onClick={async () => {
                         try {
                           await api.post(`/events/${event.id}/register`);
@@ -422,7 +422,7 @@ const StudentDashboard = () => {
                 </button>
               </div>
             </div>
-            
+
             <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-gray-500 mb-2">
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
                 <div key={day}>{day}</div>
@@ -434,7 +434,7 @@ const StudentDashboard = () => {
                 const dayEvents = getEventsForDate(day);
                 const isSelected = selectedDate && isSameDay(day, selectedDate);
                 const isCurrentMonth = isSameMonth(day, monthStart);
-                
+
                 return (
                   <button
                     key={i}
@@ -574,7 +574,7 @@ const SocietyAdminDashboard = () => {
           </Card>
         ))}
       </div>
-      
+
       <Card>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-semibold">Your Events</h2>
@@ -680,58 +680,187 @@ const SuperAdminDashboard = () => {
 
 const ManageSocieties = () => {
   const [societies, setSocieties] = useState<any[]>([]);
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    fic_name: '',
+    fic_details: '',
+    department: '',
+    email: '',
+    password: ''
+  });
 
   useEffect(() => {
-    api.get('/societies').then(res => setSocieties(res.data));
+    fetchSocieties();
   }, []);
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const fetchSocieties = async () => {
+    try {
+      const res = await api.get('/societies');
+      setSocieties(res.data);
+    } catch (err) {
+      console.error("Failed to fetch societies", err);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await api.post('/societies', { name, description });
-      setSocieties([...societies, res.data]);
-      setName('');
-      setDescription('');
+      if (editingId) {
+        await api.patch(`/societies/${editingId}`, formData);
+        alert('Society updated successfully');
+      } else {
+        await api.post('/societies', formData);
+        alert('Society and Admin created successfully');
+      }
+      setEditingId(null);
+      setFormData({ name: '', description: '', fic_name: '', fic_details: '', department: '', email: '', password: '' });
+      fetchSocieties();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to create society');
+      alert(err.response?.data?.error || 'Operation failed');
+    }
+  };
+
+  const handleEdit = (society: any) => {
+    setEditingId(society.id);
+    setFormData({
+      name: society.name,
+      description: society.description || '',
+      fic_name: society.fic_name || '',
+      fic_details: society.fic_details || '',
+      department: society.department || '',
+      email: '', // Don't pre-fill sensitive info for edit unless you have a way to update it
+      password: ''
+    });
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this society? This will remove all associated data.')) return;
+    try {
+      await api.delete(`/societies/${id}`);
+      fetchSocieties();
+    } catch (err) {
+      alert('Failed to delete society');
     }
   };
 
   return (
     <div className="space-y-8">
       <h1 className="text-2xl font-bold">Manage Societies</h1>
+
       <Card>
-        <h2 className="mb-4 text-lg font-semibold">Add New Society</h2>
-        <form onSubmit={handleCreate} className="flex gap-4">
-          <input
-            type="text"
-            placeholder="Society Name"
-            className="flex-1 rounded-lg border border-gray-300 px-4 py-2 focus:border-[#0B3D91] focus:outline-none"
-            value={name}
-            onChange={e => setName(e.target.value)}
-            required
-          />
-          <input
-            type="text"
-            placeholder="Description"
-            className="flex-2 rounded-lg border border-gray-300 px-4 py-2 focus:border-[#0B3D91] focus:outline-none"
-            value={description}
-            onChange={e => setDescription(e.target.value)}
-          />
-          <Button type="submit">Add Society</Button>
+        <h2 className="mb-4 text-lg font-semibold">{editingId ? 'Edit Society' : 'Add New Society'}</h2>
+        <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Society Name</label>
+            <input
+              type="text"
+              className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-[#0B3D91] focus:outline-none"
+              value={formData.name}
+              onChange={e => setFormData({ ...formData, name: e.target.value })}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Department</label>
+            <input
+              type="text"
+              className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-[#0B3D91] focus:outline-none"
+              value={formData.department}
+              onChange={e => setFormData({ ...formData, department: e.target.value })}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">FIC Name</label>
+            <input
+              type="text"
+              className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-[#0B3D91] focus:outline-none"
+              value={formData.fic_name}
+              onChange={e => setFormData({ ...formData, fic_name: e.target.value })}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">FIC Details</label>
+            <input
+              type="text"
+              className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-[#0B3D91] focus:outline-none"
+              value={formData.fic_details}
+              onChange={e => setFormData({ ...formData, fic_details: e.target.value })}
+            />
+          </div>
+          <div className="md:col-span-2 space-y-2">
+            <label className="text-sm font-medium">Description</label>
+            <textarea
+              className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-[#0B3D91] focus:outline-none"
+              value={formData.description}
+              onChange={e => setFormData({ ...formData, description: e.target.value })}
+              rows={2}
+            />
+          </div>
+
+          {!editingId && (
+            <>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Admin Email</label>
+                <input
+                  type="email"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-[#0B3D91] focus:outline-none"
+                  value={formData.email}
+                  onChange={e => setFormData({ ...formData, email: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Admin Password</label>
+                <input
+                  type="password"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-[#0B3D91] focus:outline-none"
+                  value={formData.password}
+                  onChange={e => setFormData({ ...formData, password: e.target.value })}
+                  required
+                />
+              </div>
+            </>
+          )}
+
+          <div className="md:col-span-2 flex gap-2">
+            <Button type="submit" className="flex-1">
+              {editingId ? 'Update Society' : 'Create Society'}
+            </Button>
+            {editingId && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setEditingId(null);
+                  setFormData({ name: '', description: '', fic_name: '', fic_details: '', department: '', email: '', password: '' });
+                }}
+              >
+                Cancel
+              </Button>
+            )}
+          </div>
         </form>
       </Card>
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {societies.map(s => (
-          <Card key={s.id}>
-            <h3 className="text-xl font-bold">{s.name}</h3>
-            <p className="mt-2 text-sm text-gray-600">{s.description}</p>
-            <div className="mt-4 flex gap-2">
-              <Button variant="outline" className="w-full">Edit</Button>
-              <Button variant="outline" className="w-full text-red-600">Remove</Button>
+          <Card key={s.id} className="relative">
+            <div className="mb-4">
+              <h3 className="text-xl font-bold text-[#0B3D91]">{s.name}</h3>
+              <p className="text-xs font-bold text-[#FF6B00] uppercase tracking-wider">{s.department}</p>
+            </div>
+            <div className="space-y-2 text-sm">
+              <p><span className="font-semibold">FIC:</span> {s.fic_name}</p>
+              <p className="text-gray-600 italic">"{s.fic_details}"</p>
+              <p className="line-clamp-2 text-gray-500">{s.description}</p>
+            </div>
+            <div className="mt-6 flex gap-2">
+              <Button variant="outline" className="w-full" onClick={() => handleEdit(s)}>Edit</Button>
+              <Button variant="outline" className="w-full text-red-600" onClick={() => handleDelete(s.id)}>Remove</Button>
             </div>
           </Card>
         ))}
@@ -802,7 +931,7 @@ const Participants = () => {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Event Participants</h1>
         <div className="flex gap-4">
-          <select 
+          <select
             className="rounded-lg border border-gray-300 px-4 py-2 focus:border-[#0B3D91] focus:outline-none"
             value={selectedEventId}
             onChange={(e) => setSelectedEventId(e.target.value)}
@@ -842,8 +971,8 @@ const Participants = () => {
                     </span>
                   </td>
                   <td className="py-4">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       className="px-2 py-1 text-xs"
                       onClick={() => toggleAttendance(p.id, p.attended)}
                     >
@@ -893,7 +1022,7 @@ const CreateEvent = () => {
               required
               className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-[#0B3D91] focus:outline-none"
               value={formData.title}
-              onChange={e => setFormData({...formData, title: e.target.value})}
+              onChange={e => setFormData({ ...formData, title: e.target.value })}
             />
           </div>
           <div>
@@ -903,7 +1032,7 @@ const CreateEvent = () => {
               rows={4}
               className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-[#0B3D91] focus:outline-none"
               value={formData.description}
-              onChange={e => setFormData({...formData, description: e.target.value})}
+              onChange={e => setFormData({ ...formData, description: e.target.value })}
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -914,7 +1043,7 @@ const CreateEvent = () => {
                 required
                 className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-[#0B3D91] focus:outline-none"
                 value={formData.venue}
-                onChange={e => setFormData({...formData, venue: e.target.value})}
+                onChange={e => setFormData({ ...formData, venue: e.target.value })}
               />
             </div>
             <div>
@@ -924,7 +1053,7 @@ const CreateEvent = () => {
                 required
                 className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-[#0B3D91] focus:outline-none"
                 value={formData.event_date}
-                onChange={e => setFormData({...formData, event_date: e.target.value})}
+                onChange={e => setFormData({ ...formData, event_date: e.target.value })}
               />
             </div>
           </div>
@@ -935,7 +1064,7 @@ const CreateEvent = () => {
               required
               className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-[#0B3D91] focus:outline-none"
               value={formData.max_limit}
-              onChange={e => setFormData({...formData, max_limit: parseInt(e.target.value)})}
+              onChange={e => setFormData({ ...formData, max_limit: parseInt(e.target.value) })}
             />
           </div>
           <Button type="submit" className="w-full">Submit for Approval</Button>
@@ -966,7 +1095,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login setUser={setUser} />} />
         <Route path="/register" element={user ? <Navigate to="/dashboard" /> : <Register />} />
-        
+
         <Route path="/" element={<Navigate to="/dashboard" />} />
 
         <Route path="/dashboard" element={

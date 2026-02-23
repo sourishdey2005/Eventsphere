@@ -16,6 +16,9 @@ CREATE TABLE societies (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
   description TEXT,
+  fic_name TEXT,
+  fic_details TEXT,
+  department TEXT,
   created_by UUID REFERENCES users(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
