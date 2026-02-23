@@ -372,25 +372,32 @@ app.get("/api/admin/stats", authenticateToken, authorizeRoles("super_admin"), as
   res.json({ students, societies, registrations });
 });
 
-// --- Vite Integration ---
+// --- Main App ---
 
-async function startServer() {
-  if (process.env.NODE_ENV !== "production") {
+export default app;
+
+if (process.env.NODE_ENV !== "production") {
+  async function startServer() {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
-  } else {
-    app.use(express.static(path.join(__dirname, "dist")));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(__dirname, "dist", "index.html"));
+
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
     });
   }
+
+  startServer();
+} else if (!process.env.VERCEL) {
+  // Production but not Vercel (e.g., local preview or other host)
+  app.use(express.static(path.join(__dirname, "dist")));
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "dist", "index.html"));
+  });
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }
-
-startServer();
