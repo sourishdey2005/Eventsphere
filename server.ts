@@ -29,6 +29,7 @@ if (!supabaseUrl || !supabaseKey) {
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const JWT_SECRET = process.env.JWT_SECRET || "kiit-eventsphere-secret-2026";
+const HARDCODED_SUPER_ADMIN_ID = "00000000-0000-0000-0000-000000000000";
 
 app.use(express.json());
 
@@ -96,8 +97,8 @@ app.post("/api/auth/login", async (req, res) => {
     // Hardcoded Super Admin
     if (email === "admin@kiit.ac.in" && password === "admin@kiit") {
       console.log("[AUTH] Super Admin login detected");
-      const token = jwt.sign({ id: "super-admin-id", email, role: "super_admin" }, JWT_SECRET);
-      return res.json({ token, user: { email, role: "super_admin", name: "Super Admin" } });
+      const token = jwt.sign({ id: HARDCODED_SUPER_ADMIN_ID, email, role: "super_admin" }, JWT_SECRET);
+      return res.json({ token, user: { id: HARDCODED_SUPER_ADMIN_ID, email, role: "super_admin", name: "Super Admin" } });
     }
 
     const { data: user, error } = await supabase
@@ -184,8 +185,8 @@ app.get("/api/auth/me", authenticateToken, async (req, res) => {
   const { id } = (req as any).user;
 
   // Handle hardcoded admin
-  if (id === "super-admin-id") {
-    return res.json({ id: "super-admin-id", email: "admin@kiit.ac.in", role: "super_admin", name: "Super Admin" });
+  if (id === HARDCODED_SUPER_ADMIN_ID) {
+    return res.json({ id: HARDCODED_SUPER_ADMIN_ID, email: "admin@kiit.ac.in", role: "super_admin", name: "Super Admin" });
   }
 
   const { data: user, error } = await supabase
@@ -360,6 +361,8 @@ app.post("/api/societies", authenticateToken, authorizeRoles("super_admin"), asy
   const { name, description, fic_name, fic_details, department, email, password } = req.body;
 
   // 1. Create Society
+  const creatorId = (req as any).user.id === HARDCODED_SUPER_ADMIN_ID ? null : (req as any).user.id;
+
   const { data: society, error: societyError } = await supabase
     .from("societies")
     .insert([{
@@ -368,7 +371,7 @@ app.post("/api/societies", authenticateToken, authorizeRoles("super_admin"), asy
       fic_name,
       fic_details,
       department,
-      created_by: (req as any).user.id
+      created_by: creatorId
     }])
     .select()
     .single();
