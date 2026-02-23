@@ -21,6 +21,11 @@ const PORT = 3000;
 // Supabase Setup
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://xizdgcgzmnnwlcpxgham.supabase.co";
 const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error("CRITICAL: Supabase URL or Key is missing from environment variables!");
+}
+
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const JWT_SECRET = process.env.JWT_SECRET || "kiit-eventsphere-secret-2026";
@@ -51,13 +56,31 @@ const authorizeRoles = (...roles: string[]) => {
   };
 };
 
+app.get("/api/health", async (req, res) => {
+  console.log("[HEALTH] Health check request received");
+  try {
+    const { count, error } = await supabase.from("users").select("*", { count: 'exact', head: true });
+    if (error) {
+      console.error("[HEALTH] Supabase health check error:", error);
+      return res.status(500).json({ status: "error", error: error.message, details: error });
+    }
+    console.log("[HEALTH] Supabase connection healthy. User count:", count);
+    res.json({ status: "ok", message: "Supabase connection healthy", userCount: count });
+  } catch (err: any) {
+    console.error("[HEALTH] Unexpected health check error:", err);
+    res.status(500).json({ status: "error", message: err.message });
+  }
+});
+
 // --- Auth Routes ---
 
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
+  console.log(`[AUTH] Login attempt: email=${email}`);
 
   // Hardcoded Super Admin
   if (email === "admin@kiit.ac.in" && password === "admin@kiit") {
+    console.log("[AUTH] Super Admin login detected");
     const token = jwt.sign({ id: "super-admin-id", email, role: "super_admin" }, JWT_SECRET);
     return res.json({ token, user: { email, role: "super_admin", name: "Super Admin" } });
   }
@@ -68,42 +91,55 @@ app.post("/api/auth/login", async (req, res) => {
     .eq("email", email)
     .single();
 
-  if (error || !user) return res.status(400).json({ error: "User not found" });
+  if (error || !user) {
+    console.warn(`[AUTH] Login failed: User not found (${email})`, error?.message);
+    return res.status(400).json({ error: "User not found" });
+  }
 
   const validPassword = await bcrypt.compare(password, user.password);
-  if (!validPassword) return res.status(400).json({ error: "Invalid password" });
+  if (!validPassword) {
+    console.warn(`[AUTH] Login failed: Invalid password for ${email}`);
+    return res.status(400).json({ error: "Invalid password" });
+  }
 
+  console.log(`[AUTH] Login successful for: ${email}`);
   const token = jwt.sign({ id: user.id, email: user.email, role: user.role, society_id: user.society_id }, JWT_SECRET);
   res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name, society_id: user.society_id } });
 });
 
 app.post("/api/auth/register", async (req, res) => {
   const { name, email, password } = req.body;
-  console.log("Registration attempt for email:", email);
+  console.log(`[AUTH] Registration attempt: name=${name}, email=${email}`);
 
   if (!email || !email.endsWith("@kiit.ac.in")) {
+    console.warn(`[AUTH] Registration blocked: Invalid email domain (${email})`);
     return res.status(400).json({ error: "Only KIIT emails are allowed" });
   }
 
   try {
+    console.log("[AUTH] Hashing password...");
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    console.log("[DB] Inserting user into Supabase...");
     const { data, error } = await supabase
       .from("users")
       .insert([{ name, email, password: hashedPassword, role: "student" }])
-      .select()
-      .single();
+      .select(); // Removed .single() to see what's actually returned
 
     if (error) {
-      console.error("Supabase registration error:", error);
-      return res.status(400).json({ error: error.message || "Database operation failed" });
+      console.error("[DB] Supabase error during registration:", JSON.stringify(error, null, 2));
+      // Specifically check for common constraints
+      if (error.code === '23505') return res.status(400).json({ error: "Email already exists" });
+      if (error.code === '42P01') return res.status(500).json({ error: "Database table 'users' not found. Please run schema.sql in Supabase SQL Editor." });
+
+      return res.status(400).json({ error: error.message || "Database registration failed" });
     }
 
-    console.log("Registration successful for:", email);
+    console.log("[DB] User inserted successfully:", JSON.stringify(data, null, 2));
     res.json({ message: "Registration successful" });
   } catch (err: any) {
-    console.error("Internal registration error:", err);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("[AUTH] Unexpected error during registration:", err);
+    res.status(500).json({ error: "Internal server error: " + (err.message || "Unknown error") });
   }
 });
 
