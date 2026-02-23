@@ -79,22 +79,32 @@ app.post("/api/auth/login", async (req, res) => {
 
 app.post("/api/auth/register", async (req, res) => {
   const { name, email, password } = req.body;
+  console.log("Registration attempt for email:", email);
 
-  if (!email.endsWith("@kiit.ac.in")) {
+  if (!email || !email.endsWith("@kiit.ac.in")) {
     return res.status(400).json({ error: "Only KIIT emails are allowed" });
   }
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-  const { data, error } = await supabase
-    .from("users")
-    .insert([{ name, email, password: hashedPassword, role: "student" }])
-    .select()
-    .single();
+    const { data, error } = await supabase
+      .from("users")
+      .insert([{ name, email, password: hashedPassword, role: "student" }])
+      .select()
+      .single();
 
-  if (error) return res.status(400).json({ error: error.message });
+    if (error) {
+      console.error("Supabase registration error:", error);
+      return res.status(400).json({ error: error.message || "Database operation failed" });
+    }
 
-  res.json({ message: "Registration successful" });
+    console.log("Registration successful for:", email);
+    res.json({ message: "Registration successful" });
+  } catch (err: any) {
+    console.error("Internal registration error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 app.get("/api/auth/me", authenticateToken, async (req, res) => {
