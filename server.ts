@@ -59,13 +59,27 @@ const authorizeRoles = (...roles: string[]) => {
 app.get("/api/health", async (req, res) => {
   console.log("[HEALTH] Health check request received");
   try {
-    const { count, error } = await supabase.from("users").select("*", { count: 'exact', head: true });
-    if (error) {
-      console.error("[HEALTH] Supabase health check error:", error);
-      return res.status(500).json({ status: "error", error: error.message, details: error });
-    }
-    console.log("[HEALTH] Supabase connection healthy. User count:", count);
-    res.json({ status: "ok", message: "Supabase connection healthy", userCount: count });
+    const results: any = {
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      env: {
+        hasUrl: !!supabaseUrl,
+        hasKey: !!supabaseKey,
+        urlPreview: supabaseUrl ? supabaseUrl.substring(0, 15) + "..." : "missing"
+      }
+    };
+
+    // Check users table
+    const { count, error: userError } = await supabase.from("users").select("*", { count: 'exact', head: true });
+    results.database = {
+      connected: !userError,
+      usersTable: userError ? "error" : "ok",
+      userCount: count,
+      error: userError ? userError.message : null
+    };
+
+    console.log("[HEALTH] Diagnostic results:", JSON.stringify(results, null, 2));
+    res.json(results);
   } catch (err: any) {
     console.error("[HEALTH] Unexpected health check error:", err);
     res.status(500).json({ status: "error", message: err.message });
@@ -78,33 +92,44 @@ app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
   console.log(`[AUTH] Login attempt: email=${email}`);
 
-  // Hardcoded Super Admin
-  if (email === "admin@kiit.ac.in" && password === "admin@kiit") {
-    console.log("[AUTH] Super Admin login detected");
-    const token = jwt.sign({ id: "super-admin-id", email, role: "super_admin" }, JWT_SECRET);
-    return res.json({ token, user: { email, role: "super_admin", name: "Super Admin" } });
+  try {
+    // Hardcoded Super Admin
+    if (email === "admin@kiit.ac.in" && password === "admin@kiit") {
+      console.log("[AUTH] Super Admin login detected");
+      const token = jwt.sign({ id: "super-admin-id", email, role: "super_admin" }, JWT_SECRET);
+      return res.json({ token, user: { email, role: "super_admin", name: "Super Admin" } });
+    }
+
+    const { data: user, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("email", email)
+      .single();
+
+    if (error) {
+      console.warn(`[AUTH] Login database error for ${email}:`, error.message);
+      if (error.code === 'PGRST116') return res.status(400).json({ error: "User not found" });
+      return res.status(500).json({ error: "Database error during login: " + error.message });
+    }
+
+    if (!user) {
+      console.warn(`[AUTH] Login failed: User not found (${email})`);
+      return res.status(400).json({ error: "User not found" });
+    }
+
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      console.warn(`[AUTH] Login failed: Invalid password for ${email}`);
+      return res.status(400).json({ error: "Invalid password" });
+    }
+
+    console.log(`[AUTH] Login successful for: ${email}`);
+    const token = jwt.sign({ id: user.id, email: user.email, role: user.role, society_id: user.society_id }, JWT_SECRET);
+    res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name, society_id: user.society_id } });
+  } catch (err: any) {
+    console.error("[AUTH] Unexpected error during login:", err);
+    res.status(500).json({ error: "Internal server error during login" });
   }
-
-  const { data: user, error } = await supabase
-    .from("users")
-    .select("*")
-    .eq("email", email)
-    .single();
-
-  if (error || !user) {
-    console.warn(`[AUTH] Login failed: User not found (${email})`, error?.message);
-    return res.status(400).json({ error: "User not found" });
-  }
-
-  const validPassword = await bcrypt.compare(password, user.password);
-  if (!validPassword) {
-    console.warn(`[AUTH] Login failed: Invalid password for ${email}`);
-    return res.status(400).json({ error: "Invalid password" });
-  }
-
-  console.log(`[AUTH] Login successful for: ${email}`);
-  const token = jwt.sign({ id: user.id, email: user.email, role: user.role, society_id: user.society_id }, JWT_SECRET);
-  res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name, society_id: user.society_id } });
 });
 
 app.post("/api/auth/register", async (req, res) => {
@@ -124,13 +149,25 @@ app.post("/api/auth/register", async (req, res) => {
     const { data, error } = await supabase
       .from("users")
       .insert([{ name, email, password: hashedPassword, role: "student" }])
-      .select(); // Removed .single() to see what's actually returned
+      .select();
 
     if (error) {
       console.error("[DB] Supabase error during registration:", JSON.stringify(error, null, 2));
-      // Specifically check for common constraints
-      if (error.code === '23505') return res.status(400).json({ error: "Email already exists" });
-      if (error.code === '42P01') return res.status(500).json({ error: "Database table 'users' not found. Please run schema.sql in Supabase SQL Editor." });
+
+      // Handle missing table error
+      if (error.code === '42P01') {
+        return res.status(500).json({ error: "Database table 'users' not found. Please run schema.sql in Supabase SQL Editor." });
+      }
+
+      // Handle duplicate email
+      if (error.code === '23505') {
+        return res.status(400).json({ error: "Email already registered." });
+      }
+
+      // Handle missing extension (uuid_generate_v4) or missing function
+      if (error.message?.includes('uuid_generate_v4') || error.hint?.includes('uuid-ossp')) {
+        return res.status(500).json({ error: "Database error: uuid-ossp extension is missing. Please run 'CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";' in Supabase SQL Editor." });
+      }
 
       return res.status(400).json({ error: error.message || "Database registration failed" });
     }
@@ -447,3 +484,9 @@ if (process.env.NODE_ENV !== "production") {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }
+
+// Global Error Handler
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error("[GLOBAL ERROR]", err);
+  res.status(500).json({ error: "An unexpected error occurred: " + (err.message || "Unknown error") });
+});
