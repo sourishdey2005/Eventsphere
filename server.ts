@@ -239,6 +239,29 @@ app.get("/api/student/stats", authenticateToken, authorizeRoles("student"), asyn
   res.json({ points, attendedCount: data?.length || 0 });
 });
 
+app.get("/api/events/:id/participants", authenticateToken, authorizeRoles("society_admin", "super_admin"), async (req, res) => {
+  const { data, error } = await supabase
+    .from("event_registrations")
+    .select("*, users(name, email)")
+    .eq("event_id", req.params.id);
+
+  if (error) return res.status(400).json({ error: error.message });
+  res.json(data);
+});
+
+app.patch("/api/registrations/:id/attendance", authenticateToken, authorizeRoles("society_admin"), async (req, res) => {
+  const { attended } = req.body;
+  const { data, error } = await supabase
+    .from("event_registrations")
+    .update({ attended })
+    .eq("id", req.params.id)
+    .select()
+    .single();
+
+  if (error) return res.status(400).json({ error: error.message });
+  res.json(data);
+});
+
 // --- Society Routes ---
 
 app.get("/api/societies", async (req, res) => {
@@ -257,6 +280,17 @@ app.post("/api/societies", authenticateToken, authorizeRoles("super_admin"), asy
     .insert([{ name, description, created_by: (req as any).user.id }])
     .select()
     .single();
+
+  if (error) return res.status(400).json({ error: error.message });
+  res.json(data);
+});
+
+app.get("/api/society/events", authenticateToken, authorizeRoles("society_admin"), async (req, res) => {
+  const societyId = (req as any).user.society_id;
+  const { data, error } = await supabase
+    .from("events")
+    .select("*, societies(name)")
+    .eq("society_id", societyId);
 
   if (error) return res.status(400).json({ error: error.message });
   res.json(data);

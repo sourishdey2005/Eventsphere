@@ -426,14 +426,27 @@ const MyRegistrations = () => {
 };
 
 const SocietyAdminDashboard = () => {
+  const [events, setEvents] = useState<Event[]>([]);
+  const [stats, setStats] = useState({ totalEvents: 0, totalRegistrations: 0 });
+
+  useEffect(() => {
+    api.get('/society/events').then(res => {
+      setEvents(res.data);
+      setStats(prev => ({ ...prev, totalEvents: res.data.length }));
+    });
+    api.get('/society/participants').then(res => {
+      setStats(prev => ({ ...prev, totalRegistrations: res.data.length }));
+    });
+  }, []);
+
   return (
     <div className="space-y-8">
       <h1 className="text-2xl font-bold">Society Management</h1>
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: 'Total Events', value: '12', icon: Calendar },
-          { label: 'Registrations', value: '458', icon: Users },
-          { label: 'Upcoming', value: '3', icon: Bell },
+          { label: 'Total Events', value: stats.totalEvents.toString(), icon: Calendar },
+          { label: 'Registrations', value: stats.totalRegistrations.toString(), icon: Users },
+          { label: 'Upcoming', value: events.filter(e => new Date(e.event_date) > new Date()).length.toString(), icon: Bell },
           { label: 'Engagement', value: '84%', icon: Trophy },
         ].map(stat => (
           <Card key={stat.label} className="flex items-center gap-4">
@@ -462,21 +475,26 @@ const SocietyAdminDashboard = () => {
                 <th className="pb-4">Event Name</th>
                 <th className="pb-4">Date</th>
                 <th className="pb-4">Status</th>
-                <th className="pb-4">Registrations</th>
                 <th className="pb-4">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
-              {[1, 2, 3].map(i => (
-                <tr key={i} className="text-sm">
-                  <td className="py-4 font-medium">Tech Workshop {i}</td>
-                  <td className="py-4">Oct 24, 2026</td>
+              {events.map(event => (
+                <tr key={event.id} className="text-sm">
+                  <td className="py-4 font-medium">{event.title}</td>
+                  <td className="py-4">{new Date(event.event_date).toLocaleDateString()}</td>
                   <td className="py-4">
-                    <span className="rounded-full bg-green-100 px-2 py-1 text-xs text-green-700">Verified</span>
+                    <span className={cn(
+                      "rounded-full px-2 py-1 text-xs",
+                      event.verified ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                    )}>
+                      {event.verified ? "Verified" : "Pending"}
+                    </span>
                   </td>
-                  <td className="py-4">120/150</td>
                   <td className="py-4 flex gap-2">
-                    <Button variant="outline" className="px-2 py-1 text-xs">Edit</Button>
+                    <Link to={`/participants?event_id=${event.id}`}>
+                      <Button variant="outline" className="px-2 py-1 text-xs">Participants</Button>
+                    </Link>
                     <Button variant="outline" className="px-2 py-1 text-xs text-red-600">Delete</Button>
                   </td>
                 </tr>
@@ -610,14 +628,81 @@ const ManageSocieties = () => {
 
 const Participants = () => {
   const [participants, setParticipants] = useState<any[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState<string>('');
+  const [searchParams] = React.useSearchParams();
 
   useEffect(() => {
-    api.get('/society/participants').then(res => setParticipants(res.data));
-  }, []);
+    api.get('/society/events').then(res => {
+      setEvents(res.data);
+      const eventId = searchParams.get('event_id');
+      if (eventId) {
+        setSelectedEventId(eventId);
+      } else if (res.data.length > 0) {
+        setSelectedEventId(res.data[0].id);
+      }
+    });
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (selectedEventId) {
+      api.get(`/events/${selectedEventId}/participants`).then(res => setParticipants(res.data));
+    }
+  }, [selectedEventId]);
+
+  const toggleAttendance = async (regId: string, currentStatus: boolean) => {
+    try {
+      await api.patch(`/registrations/${regId}/attendance`, { attended: !currentStatus });
+      setParticipants(prev => prev.map(p => p.id === regId ? { ...p, attended: !currentStatus } : p));
+    } catch (err) {
+      alert('Failed to update attendance');
+    }
+  };
+
+  const downloadCSV = () => {
+    const headers = ['Name', 'Email', 'Status'];
+    const rows = participants.map(p => [
+      p.users.name,
+      p.users.email,
+      p.attended ? 'Present' : 'Absent'
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(r => r.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `participants_${selectedEventId}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Event Participants</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Event Participants</h1>
+        <div className="flex gap-4">
+          <select 
+            className="rounded-lg border border-gray-300 px-4 py-2 focus:border-[#0B3D91] focus:outline-none"
+            value={selectedEventId}
+            onChange={(e) => setSelectedEventId(e.target.value)}
+          >
+            <option value="">Select Event</option>
+            {events.map(e => (
+              <option key={e.id} value={e.id}>{e.title}</option>
+            ))}
+          </select>
+          <Button onClick={downloadCSV} variant="outline" className="gap-2">
+            Download CSV
+          </Button>
+        </div>
+      </div>
       <Card>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
@@ -625,8 +710,8 @@ const Participants = () => {
               <tr className="border-b text-sm font-medium text-gray-500">
                 <th className="pb-4">Name</th>
                 <th className="pb-4">Email</th>
-                <th className="pb-4">Event</th>
-                <th className="pb-4">Status</th>
+                <th className="pb-4">Attendance</th>
+                <th className="pb-4">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -634,14 +719,22 @@ const Participants = () => {
                 <tr key={p.id} className="text-sm">
                   <td className="py-4 font-medium">{p.users.name}</td>
                   <td className="py-4">{p.users.email}</td>
-                  <td className="py-4">{p.events.title}</td>
                   <td className="py-4">
                     <span className={cn(
                       "rounded-full px-2 py-1 text-xs",
-                      p.attended ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
+                      p.attended ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
                     )}>
-                      {p.attended ? "Attended" : "Registered"}
+                      {p.attended ? "Present" : "Absent"}
                     </span>
+                  </td>
+                  <td className="py-4">
+                    <Button 
+                      variant="outline" 
+                      className="px-2 py-1 text-xs"
+                      onClick={() => toggleAttendance(p.id, p.attended)}
+                    >
+                      Mark as {p.attended ? 'Absent' : 'Present'}
+                    </Button>
                   </td>
                 </tr>
               ))}
@@ -745,19 +838,11 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const initAuth = async () => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          const res = await api.get('/auth/me');
-          setUser(res.data);
-        } catch (err) {
-          localStorage.removeItem('token');
-        }
-      }
-      setLoading(false);
-    };
-    initAuth();
+    // Requirement: Logout on reload
+    // We clear the token every time the app initializes (which happens on reload)
+    localStorage.removeItem('token');
+    setUser(null);
+    setLoading(false);
   }, []);
 
   if (loading) return <div className="flex h-screen items-center justify-center">Loading...</div>;
