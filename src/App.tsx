@@ -1,6 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
 import { 
+  format, 
+  startOfMonth, 
+  endOfMonth, 
+  startOfWeek, 
+  endOfWeek, 
+  eachDayOfInterval, 
+  isSameMonth, 
+  isSameDay, 
+  addMonths, 
+  subMonths,
+  parseISO
+} from 'date-fns';
+import { 
   LayoutDashboard, 
   Calendar, 
   Users, 
@@ -314,12 +327,30 @@ const DashboardLayout = ({ user, setUser, children }: { user: User; setUser: (u:
 
 const StudentDashboard = () => {
   const [events, setEvents] = useState<Event[]>([]);
+  const [registrations, setRegistrations] = useState<any[]>([]);
   const [stats, setStats] = useState({ points: 0, attendedCount: 0 });
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   useEffect(() => {
     api.get('/events').then(res => setEvents(res.data));
     api.get('/student/stats').then(res => setStats(res.data)).catch(() => {});
+    api.get('/student/registrations').then(res => setRegistrations(res.data)).catch(() => {});
   }, []);
+
+  const monthStart = startOfMonth(currentMonth);
+  const monthEnd = endOfMonth(monthStart);
+  const startDate = startOfWeek(monthStart);
+  const endDate = endOfWeek(monthEnd);
+
+  const calendarDays = eachDayOfInterval({
+    start: startDate,
+    end: endDate,
+  });
+
+  const getEventsForDate = (date: Date) => {
+    return registrations.filter(reg => isSameDay(parseISO(reg.events.event_date), date));
+  };
 
   return (
     <div className="space-y-8">
@@ -336,46 +367,129 @@ const StudentDashboard = () => {
         </div>
       </div>
 
-      <section>
-        <h2 className="mb-4 text-lg font-semibold">Upcoming Events</h2>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {events.map(event => (
-            <motion.div key={event.id} whileHover={{ y: -5 }}>
-              <Card className="h-full flex flex-col">
-                <div className="mb-4 h-40 w-full rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
-                  <img src={`https://picsum.photos/seed/${event.id}/400/200`} alt="Event" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                </div>
-                <div className="flex-1">
-                  <span className="text-xs font-bold text-[#FF6B00] uppercase tracking-wider">{event.societies?.name || 'Society'}</span>
-                  <h3 className="mt-1 text-xl font-bold">{event.title}</h3>
-                  <p className="mt-2 text-sm text-gray-600 line-clamp-2">{event.description}</p>
-                  <div className="mt-4 flex items-center gap-2 text-sm text-gray-500">
-                    <Calendar size={16} />
-                    {new Date(event.event_date).toLocaleDateString()}
-                  </div>
-                  <div className="mt-2 flex items-center gap-2 text-sm text-gray-500">
-                    <Users size={16} />
-                    Max {event.max_limit} participants
-                  </div>
-                </div>
-                <Button 
-                  onClick={async () => {
-                    try {
-                      await api.post(`/events/${event.id}/register`);
-                      alert('Successfully registered!');
-                    } catch (err: any) {
-                      alert(err.response?.data?.error || 'Registration failed');
-                    }
-                  }}
-                  className="mt-6 w-full"
-                >
-                  Register Now
-                </Button>
-              </Card>
-            </motion.div>
-          ))}
+      <div className="grid gap-8 lg:grid-cols-3">
+        <div className="lg:col-span-2 space-y-8">
+          <section>
+            <h2 className="mb-4 text-lg font-semibold">Upcoming Events</h2>
+            <div className="grid gap-6 sm:grid-cols-2">
+              {events.slice(0, 4).map(event => (
+                <motion.div key={event.id} whileHover={{ y: -5 }}>
+                  <Card className="h-full flex flex-col">
+                    <div className="mb-4 h-40 w-full rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
+                      <img src={`https://picsum.photos/seed/${event.id}/400/200`} alt="Event" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    </div>
+                    <div className="flex-1">
+                      <span className="text-xs font-bold text-[#FF6B00] uppercase tracking-wider">{event.societies?.name || 'Society'}</span>
+                      <h3 className="mt-1 text-xl font-bold">{event.title}</h3>
+                      <p className="mt-2 text-sm text-gray-600 line-clamp-2">{event.description}</p>
+                      <div className="mt-4 flex items-center gap-2 text-sm text-gray-500">
+                        <Calendar size={16} />
+                        {new Date(event.event_date).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <Button 
+                      onClick={async () => {
+                        try {
+                          await api.post(`/events/${event.id}/register`);
+                          alert('Successfully registered!');
+                          // Refresh registrations
+                          api.get('/student/registrations').then(res => setRegistrations(res.data));
+                        } catch (err: any) {
+                          alert(err.response?.data?.error || 'Registration failed');
+                        }
+                      }}
+                      className="mt-6 w-full"
+                    >
+                      Register Now
+                    </Button>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+          </section>
         </div>
-      </section>
+
+        <div className="space-y-6">
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-lg">{format(currentMonth, 'MMMM yyyy')}</h3>
+              <div className="flex gap-2">
+                <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-1 hover:bg-gray-100 rounded">
+                  <Menu size={16} className="rotate-90" />
+                </button>
+                <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-1 hover:bg-gray-100 rounded">
+                  <Menu size={16} className="-rotate-90" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-gray-500 mb-2">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                <div key={day}>{day}</div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-1">
+              {calendarDays.map((day, i) => {
+                const dayEvents = getEventsForDate(day);
+                const isSelected = selectedDate && isSameDay(day, selectedDate);
+                const isCurrentMonth = isSameMonth(day, monthStart);
+                
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setSelectedDate(day)}
+                    className={cn(
+                      "relative h-10 w-full rounded-lg flex items-center justify-center text-sm transition-colors",
+                      !isCurrentMonth && "text-gray-300",
+                      isCurrentMonth && "hover:bg-gray-100",
+                      isSelected && "bg-[#0B3D91] text-white hover:bg-[#0B3D91]",
+                      dayEvents.length > 0 && !isSelected && "bg-orange-50 text-[#FF6B00] font-bold"
+                    )}
+                  >
+                    {format(day, 'd')}
+                    {dayEvents.length > 0 && (
+                      <div className={cn(
+                        "absolute bottom-1 h-1 w-1 rounded-full",
+                        isSelected ? "bg-white" : "bg-[#FF6B00]"
+                      )} />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <AnimatePresence>
+              {selectedDate && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mt-6 pt-6 border-t"
+                >
+                  <h4 className="font-bold text-sm mb-3">Events on {format(selectedDate, 'MMM d, yyyy')}</h4>
+                  <div className="space-y-3">
+                    {getEventsForDate(selectedDate).length > 0 ? (
+                      getEventsForDate(selectedDate).map(reg => (
+                        <div key={reg.id} className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                          <p className="text-sm font-bold text-[#0B3D91]">{reg.events.title}</p>
+                          <p className="text-xs text-gray-500 mt-1">{reg.events.societies.name}</p>
+                          <div className="flex items-center gap-2 mt-2 text-[10px] text-gray-400">
+                            <QrCode size={12} />
+                            <span>Scan QR for entry</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-gray-500 italic">No registered events for this day.</p>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 };
