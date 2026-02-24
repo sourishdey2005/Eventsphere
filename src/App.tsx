@@ -106,9 +106,10 @@ const Login = ({ setUser }: { setUser: (u: User) => void }) => {
       setUser(res.data.user);
       navigate('/dashboard');
     } catch (err: any) {
-      const errorMsg = err.response?.data?.error || err.message || 'Login failed';
-      const details = err.response?.data?.details ? ` (${err.response.data.details})` : '';
-      setError(`${errorMsg}${details}`);
+      const data = err.response?.data;
+      const errorBase = typeof data?.error === 'object' ? (data.error.message || JSON.stringify(data.error)) : (data?.error || err.message || 'Login failed');
+      const details = data?.details ? ` (${typeof data.details === 'object' ? JSON.stringify(data.details) : data.details})` : '';
+      setError(`${errorBase}${details}`);
     }
   };
 
@@ -178,9 +179,10 @@ const Register = () => {
       setSuccess(true);
       setTimeout(() => navigate('/login'), 2000);
     } catch (err: any) {
-      const errorMsg = err.response?.data?.error || err.message || 'Registration failed';
-      const details = err.response?.data?.details ? ` (${err.response.data.details})` : '';
-      setError(`${errorMsg}${details}`);
+      const data = err.response?.data;
+      const errorBase = typeof data?.error === 'object' ? (data.error.message || JSON.stringify(data.error)) : (data?.error || err.message || 'Registration failed');
+      const details = data?.details ? ` (${typeof data.details === 'object' ? JSON.stringify(data.details) : data.details})` : '';
+      setError(`${errorBase}${details}`);
     }
   };
 
