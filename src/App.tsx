@@ -106,7 +106,9 @@ const Login = ({ setUser }: { setUser: (u: User) => void }) => {
       setUser(res.data.user);
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Login failed');
+      const errorMsg = err.response?.data?.error || err.message || 'Login failed';
+      const details = err.response?.data?.details ? ` (${err.response.data.details})` : '';
+      setError(`${errorMsg}${details}`);
     }
   };
 

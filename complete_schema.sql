@@ -1,3 +1,7 @@
+-- ==========================================
+-- KIIT EventSphere - Complete Database Schema
+-- ==========================================
+
 -- 1. CLEANUP (Drop in reverse order of dependency)
 DROP TABLE IF EXISTS society_members;
 DROP TABLE IF EXISTS event_registrations;
@@ -23,6 +27,7 @@ CREATE TABLE societies (
 );
 
 -- 4. CREATE USERS
+-- Roles: 'student', 'society_admin', 'super_admin'
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
@@ -39,6 +44,7 @@ ADD CONSTRAINT fk_societies_created_by
 FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
 
 -- 6. CREATE APPROVED ADMINS
+-- Pre-approve emails that can register as society admins
 CREATE TABLE approved_society_admins (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   email TEXT UNIQUE NOT NULL,
@@ -79,3 +85,17 @@ CREATE TABLE society_members (
   joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(society_id, student_id)
 );
+
+-- 10. DISABLE ROW LEVEL SECURITY (REQUIRED FOR BACKEND ACCESS)
+-- Since the backend uses the service/anon key but doesn't have complex RLS policies yet,
+-- we disable it to allow full operation.
+ALTER TABLE users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE societies DISABLE ROW LEVEL SECURITY;
+ALTER TABLE events DISABLE ROW LEVEL SECURITY;
+ALTER TABLE event_registrations DISABLE ROW LEVEL SECURITY;
+ALTER TABLE society_members DISABLE ROW LEVEL SECURITY;
+ALTER TABLE approved_society_admins DISABLE ROW LEVEL SECURITY;
+
+-- 11. INITIAL SEED (OPTIONAL)
+-- Note: Super Admin (admin@kiit.ac.in) is hardcoded in the backend
+-- so no initial user entry is strictly required for the first login.

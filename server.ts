@@ -70,13 +70,23 @@ app.get("/api/health", async (req, res) => {
       }
     };
 
-    // Check users table
-    const { count, error: userError } = await supabase.from("users").select("*", { count: 'exact', head: true });
+    // Check users table for data and permissions
+    const { data: users, count, error: userError } = await supabase
+      .from("users")
+      .select("*", { count: 'exact', head: false })
+      .limit(1);
+
     results.database = {
-      connected: !userError,
-      usersTable: userError ? "error" : "ok",
+      connected: !userError || userError.code !== 'PGRST301', // JWT/Auth issues
+      usersTable: userError ? (userError.code === '42P01' ? "missing" : "error") : "ok",
       userCount: count,
-      error: userError ? userError.message : null
+      error: userError ? {
+        message: userError.message,
+        code: userError.code,
+        hint: userError.hint,
+        details: userError.details
+      } : null,
+      rlsStatus: userError?.code === '42501' ? "active (blocking)" : "checked"
     };
 
     console.log("[HEALTH] Diagnostic results:", JSON.stringify(results, null, 2));
@@ -129,7 +139,11 @@ app.post("/api/auth/login", async (req, res) => {
     res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name, society_id: user.society_id } });
   } catch (err: any) {
     console.error("[AUTH] Unexpected error during login:", err);
-    res.status(500).json({ error: "Internal server error during login" });
+    res.status(500).json({
+      error: "Internal server error during login",
+      details: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
   }
 });
 
