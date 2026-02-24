@@ -178,7 +178,9 @@ const Register = () => {
       setSuccess(true);
       setTimeout(() => navigate('/login'), 2000);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Registration failed');
+      const errorMsg = err.response?.data?.error || err.message || 'Registration failed';
+      const details = err.response?.data?.details ? ` (${err.response.data.details})` : '';
+      setError(`${errorMsg}${details}`);
     }
   };
 

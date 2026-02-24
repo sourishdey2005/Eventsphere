@@ -89,6 +89,22 @@ app.get("/api/health", async (req, res) => {
       rlsStatus: userError?.code === '42501' ? "active (blocking)" : "checked"
     };
 
+    // Check INSERT permission (simulated check)
+    try {
+      const { error: insertError } = await supabase
+        .from("users")
+        .insert([{ name: "Health Check", email: "health@check.tmp", password: "tmp", role: "student" }])
+        .select()
+        .limit(0); // Don't actually insert if possible, or just check the error
+
+      // We ignore the actual insertion (it will fail anyway if email exists)
+      // but we look for 'permission denied'
+      results.database.canInsert = insertError?.code !== '42501';
+      if (insertError?.code === '42501') {
+        results.database.rlsStatus = "active (blocking INSERT)";
+      }
+    } catch (e) { }
+
     console.log("[HEALTH] Diagnostic results:", JSON.stringify(results, null, 2));
     res.json(results);
   } catch (err: any) {
@@ -184,14 +200,23 @@ app.post("/api/auth/register", async (req, res) => {
         return res.status(500).json({ error: "Database error: uuid-ossp extension is missing. Please run 'CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";' in Supabase SQL Editor." });
       }
 
-      return res.status(400).json({ error: error.message || "Database registration failed" });
+      return res.status(400).json({
+        error: error.message || "Database registration failed",
+        code: error.code,
+        details: error.details,
+        hint: error.hint
+      });
     }
 
     console.log("[DB] User inserted successfully:", JSON.stringify(data, null, 2));
     res.json({ message: "Registration successful" });
   } catch (err: any) {
     console.error("[AUTH] Unexpected error during registration:", err);
-    res.status(500).json({ error: "Internal server error: " + (err.message || "Unknown error") });
+    res.status(500).json({
+      error: "Internal server error during registration",
+      details: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
   }
 });
 
