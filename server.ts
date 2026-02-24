@@ -1,11 +1,8 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import { createClient } from "@supabase/supabase-js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import multer from "multer";
 import QRCode from "qrcode";
-import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from 'url';
@@ -19,7 +16,7 @@ const app = express();
 const PORT = 3000;
 
 // Supabase Setup
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://xizdgcgzmnnwlcpxgham.supabase.co";
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
 const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
 
 if (!supabaseUrl || !supabaseKey) {
@@ -57,6 +54,8 @@ const authorizeRoles = (...roles: string[]) => {
   };
 };
 
+// --- Health Check ---
+
 app.get("/api/health", async (req, res) => {
   console.log("[HEALTH] Health check request received");
   try {
@@ -77,33 +76,16 @@ app.get("/api/health", async (req, res) => {
       .limit(1);
 
     results.database = {
-      connected: !userError || userError.code !== 'PGRST301', // JWT/Auth issues
+      connected: !userError || userError.code !== 'PGRST301',
       usersTable: userError ? (userError.code === '42P01' ? "missing" : "error") : "ok",
       userCount: count,
       error: userError ? {
         message: userError.message,
         code: userError.code,
         hint: userError.hint,
-        details: userError.details
       } : null,
-      rlsStatus: userError?.code === '42501' ? "active (blocking)" : "checked"
+      rlsStatus: userError?.code === '42501' ? "active (BLOCKING - run schema.sql to fix)" : "ok"
     };
-
-    // Check INSERT permission (simulated check)
-    try {
-      const { error: insertError } = await supabase
-        .from("users")
-        .insert([{ name: "Health Check", email: "health@check.tmp", password: "tmp", role: "student" }])
-        .select()
-        .limit(0); // Don't actually insert if possible, or just check the error
-
-      // We ignore the actual insertion (it will fail anyway if email exists)
-      // but we look for 'permission denied'
-      results.database.canInsert = insertError?.code !== '42501';
-      if (insertError?.code === '42501') {
-        results.database.rlsStatus = "active (blocking INSERT)";
-      }
-    } catch (e) { }
 
     console.log("[HEALTH] Diagnostic results:", JSON.stringify(results, null, 2));
     res.json(results);
@@ -118,6 +100,10 @@ app.get("/api/health", async (req, res) => {
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
   console.log(`[AUTH] Login attempt: email=${email}`);
+
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email and password are required" });
+  }
 
   try {
     // Hardcoded Super Admin
@@ -134,19 +120,18 @@ app.post("/api/auth/login", async (req, res) => {
       .single();
 
     if (error) {
-      console.warn(`[AUTH] Login database error for ${email}:`, error.message);
+      console.warn(`[AUTH] Login database error for ${email}:`, error.message, "code:", error.code);
       if (error.code === 'PGRST116') return res.status(400).json({ error: "User not found" });
-      return res.status(500).json({ error: "Database error during login: " + error.message });
+      if (error.code === '42501') return res.status(500).json({ error: "Database permission denied. RLS is active. Please run complete_schema.sql in Supabase." });
+      return res.status(500).json({ error: "Database error: " + error.message });
     }
 
     if (!user) {
-      console.warn(`[AUTH] Login failed: User not found (${email})`);
       return res.status(400).json({ error: "User not found" });
     }
 
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
-      console.warn(`[AUTH] Login failed: Invalid password for ${email}`);
       return res.status(400).json({ error: "Invalid password" });
     }
 
@@ -155,11 +140,7 @@ app.post("/api/auth/login", async (req, res) => {
     res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name, society_id: user.society_id } });
   } catch (err: any) {
     console.error("[AUTH] Unexpected error during login:", err);
-    res.status(500).json({
-      error: "Internal server error during login",
-      details: err.message,
-      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-    });
+    res.status(500).json({ error: "Server error: " + (err.message || "Unknown error") });
   }
 });
 
@@ -167,63 +148,52 @@ app.post("/api/auth/register", async (req, res) => {
   const { name, email, password } = req.body;
   console.log(`[AUTH] Registration attempt: name=${name}, email=${email}`);
 
-  if (!email || !email.endsWith("@kiit.ac.in")) {
-    console.warn(`[AUTH] Registration blocked: Invalid email domain (${email})`);
-    return res.status(400).json({ error: "Only KIIT emails are allowed" });
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: "Name, email, and password are required" });
+  }
+
+  if (!email.endsWith("@kiit.ac.in")) {
+    return res.status(400).json({ error: "Only KIIT emails are allowed (@kiit.ac.in)" });
   }
 
   try {
-    console.log("[AUTH] Hashing password...");
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    console.log("[DB] Inserting user into Supabase...");
     const { data, error } = await supabase
       .from("users")
       .insert([{ name, email, password: hashedPassword, role: "student" }])
       .select();
 
     if (error) {
-      console.error("[DB] Supabase error during registration:", JSON.stringify(error, null, 2));
+      console.error("[DB] Supabase error during registration:", JSON.stringify(error));
 
-      // Handle missing table error
       if (error.code === '42P01') {
-        return res.status(500).json({ error: "Database table 'users' not found. Please run schema.sql in Supabase SQL Editor." });
+        return res.status(500).json({ error: "Table 'users' not found. Run complete_schema.sql in Supabase." });
       }
-
-      // Handle duplicate email
       if (error.code === '23505') {
-        return res.status(400).json({ error: "Email already registered." });
+        return res.status(400).json({ error: "Email already registered. Please login instead." });
+      }
+      if (error.code === '42501') {
+        return res.status(500).json({ error: "Database permission denied. RLS is active. Please run complete_schema.sql in Supabase." });
+      }
+      if (error.message?.includes('uuid_generate_v4')) {
+        return res.status(500).json({ error: "Missing 'uuid-ossp' extension. Run complete_schema.sql in Supabase." });
       }
 
-      // Handle missing extension (uuid_generate_v4) or missing function
-      if (error.message?.includes('uuid_generate_v4') || error.hint?.includes('uuid-ossp')) {
-        return res.status(500).json({ error: "Database error: uuid-ossp extension is missing. Please run 'CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";' in Supabase SQL Editor." });
-      }
-
-      return res.status(400).json({
-        error: error.message || "Database registration failed",
-        code: error.code,
-        details: error.details,
-        hint: error.hint
-      });
+      return res.status(400).json({ error: error.message || "Registration failed" });
     }
 
-    console.log("[DB] User inserted successfully:", JSON.stringify(data, null, 2));
-    res.json({ message: "Registration successful" });
+    console.log("[DB] User registered successfully");
+    res.json({ message: "Registration successful! Please login." });
   } catch (err: any) {
     console.error("[AUTH] Unexpected error during registration:", err);
-    res.status(500).json({
-      error: "Internal server error during registration",
-      details: err.message,
-      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-    });
+    res.status(500).json({ error: "Server error: " + (err.message || "Unknown error") });
   }
 });
 
 app.get("/api/auth/me", authenticateToken, async (req, res) => {
   const { id } = (req as any).user;
 
-  // Handle hardcoded admin
   if (id === HARDCODED_SUPER_ADMIN_ID) {
     return res.json({ id: HARDCODED_SUPER_ADMIN_ID, email: "admin@kiit.ac.in", role: "super_admin", name: "Super Admin" });
   }
@@ -235,7 +205,6 @@ app.get("/api/auth/me", authenticateToken, async (req, res) => {
     .single();
 
   if (error || !user) return res.status(404).json({ error: "User not found" });
-
   res.json(user);
 });
 
@@ -300,7 +269,6 @@ app.post("/api/events/:id/register", authenticateToken, authorizeRoles("student"
   const eventId = req.params.id;
   const studentId = (req as any).user.id;
 
-  // 1. Check if seats available
   const { data: event, error: eventError } = await supabase
     .from("events")
     .select("max_limit, society_id")
@@ -318,23 +286,20 @@ app.post("/api/events/:id/register", authenticateToken, authorizeRoles("student"
     return res.status(400).json({ error: "Event is full" });
   }
 
-  // 2. Generate QR Code
   const qrData = JSON.stringify({ eventId, studentId, timestamp: Date.now() });
   const qrCode = await QRCode.toDataURL(qrData);
 
-  // 3. Add to registrations
   const { error: regError } = await supabase
     .from("event_registrations")
     .insert([{ event_id: eventId, student_id: studentId, qr_code: qrCode }]);
 
-  if (regError) return res.status(400).json({ error: "Already registered" });
+  if (regError) return res.status(400).json({ error: regError.code === '23505' ? "Already registered for this event" : regError.message });
 
-  // 4. Add to society members
   await supabase
     .from("society_members")
     .upsert([{ society_id: event.society_id, student_id: studentId }], { onConflict: 'society_id,student_id' });
 
-  res.json({ message: "Registered successfully", qrCode });
+  res.json({ message: "Registered successfully!", qrCode });
 });
 
 app.get("/api/student/registrations", authenticateToken, authorizeRoles("student"), async (req, res) => {
@@ -358,7 +323,7 @@ app.get("/api/student/stats", authenticateToken, authorizeRoles("student"), asyn
 
   if (error) return res.status(400).json({ error: error.message });
 
-  const points = (data?.length || 0) * 100; // 100 points per attended event
+  const points = (data?.length || 0) * 100;
   res.json({ points, attendedCount: data?.length || 0 });
 });
 
@@ -399,25 +364,16 @@ app.get("/api/societies", async (req, res) => {
 app.post("/api/societies", authenticateToken, authorizeRoles("super_admin"), async (req, res) => {
   const { name, description, fic_name, fic_details, department, email, password } = req.body;
 
-  // 1. Create Society
   const creatorId = (req as any).user.id === HARDCODED_SUPER_ADMIN_ID ? null : (req as any).user.id;
 
   const { data: society, error: societyError } = await supabase
     .from("societies")
-    .insert([{
-      name,
-      description,
-      fic_name,
-      fic_details,
-      department,
-      created_by: creatorId
-    }])
+    .insert([{ name, description, fic_name, fic_details, department, created_by: creatorId }])
     .select()
     .single();
 
   if (societyError) return res.status(400).json({ error: societyError.message });
 
-  // 2. Create Society Admin User
   if (email && password) {
     const hashedPassword = await bcrypt.hash(password, 10);
     const { error: userError } = await supabase
@@ -431,7 +387,6 @@ app.post("/api/societies", authenticateToken, authorizeRoles("super_admin"), asy
       }]);
 
     if (userError) {
-      // Rollback society creation if user creation fails
       await supabase.from("societies").delete().eq("id", society.id);
       return res.status(400).json({ error: "Failed to create society admin: " + userError.message });
     }
@@ -454,8 +409,6 @@ app.patch("/api/societies/:id", authenticateToken, authorizeRoles("super_admin")
 });
 
 app.delete("/api/societies/:id", authenticateToken, authorizeRoles("super_admin"), async (req, res) => {
-  // Supabase RLS and Foreign Keys should handle cascading if configured, 
-  // but let's be explicit if needed or rely on the DB.
   const { error } = await supabase
     .from("societies")
     .delete()
@@ -497,12 +450,16 @@ app.get("/api/admin/stats", authenticateToken, authorizeRoles("super_admin"), as
   res.json({ students, societies, registrations });
 });
 
-// --- Main App ---
+// --- Global Error Handler ---
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error("[GLOBAL ERROR]", err);
+  res.status(500).json({ error: "An unexpected error occurred: " + (err.message || "Unknown error") });
+});
 
-export default app;
-
+// --- Start Dev Server (only when NOT running on Vercel) ---
 if (process.env.NODE_ENV !== "production") {
-  async function startServer() {
+  async function startDev() {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -510,25 +467,10 @@ if (process.env.NODE_ENV !== "production") {
     app.use(vite.middlewares);
 
     app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on http://localhost:${PORT}`);
+      console.log(`Dev server running on http://localhost:${PORT}`);
     });
   }
-
-  startServer();
-} else if (!process.env.VERCEL) {
-  // Production but not Vercel (e.g., local preview or other host)
-  app.use(express.static(path.join(__dirname, "dist")));
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(__dirname, "dist", "index.html"));
-  });
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  startDev();
 }
 
-// Global Error Handler
-app.use((err: any, req: any, res: any, next: any) => {
-  console.error("[GLOBAL ERROR]", err);
-  res.status(500).json({ error: "An unexpected error occurred: " + (err.message || "Unknown error") });
-});
+export default app;
